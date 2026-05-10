@@ -1,11 +1,21 @@
 # DigiKam Piwigo Importer
 
-Command-line importer for uploading a DigiKam-managed album folder to a
+Command-line importer for publishing a DigiKam-managed album folder to a
 self-hosted Piwigo instance through Piwigo's authenticated Web API.
 
-It avoids DigiKam's Piwigo export plugin and Piwigo filesystem sync by reading
-metadata locally, then passing title, comment, and tags explicitly during API
-upload.
+This tool exists because the usual import paths each lose something important:
+
+- DigiKam's Piwigo export does not reliably preserve tags.
+- Piwigo filesystem sync has restrictive filename rules and can miss metadata
+  such as descriptions.
+
+The importer treats DigiKam's exported image files and XMP sidecars as the
+source of truth, reads metadata locally, and sends title, description, tags,
+and album associations explicitly to Piwigo.
+
+It also supports a Piwigo-friendly access model: special DigiKam tags can be
+mapped to additional Piwigo albums, so album-based Piwigo permissions can be
+used without duplicating image files.
 
 ## Development
 
@@ -130,17 +140,18 @@ created_album_status = "private"
 ```
 
 Piwigo evaluates both album ACLs and per-image privacy level. If you set
-`default_level = 8`, the image itself is restricted to admins even when it is in
-an album that other users can access.
+`default_level = 8`, the image itself is restricted to admins even when it is
+in an album that other users can access.
 
-`created_album_status = "private"` makes albums created by this importer private
-at creation time. Existing albums are not changed; manage their ACLs in Piwigo.
+`created_album_status = "private"` makes albums created by this importer
+private at creation time. Existing albums are not changed; manage their ACLs in
+Piwigo.
 
 ## Idempotency
 
-The importer computes a SHA-256 checksum for each local file and asks Piwigo for
-an existing image before uploading. Existing images are skipped and still get
-share-album associations checked.
+The importer computes a SHA-256 checksum for each local file and asks Piwigo
+for an existing image before uploading. Existing images are skipped and still
+get share-album associations checked.
 
 Dry-run mode logs planned uploads, skips, and associations without write calls.
 
@@ -150,7 +161,7 @@ Uploads use `pwg.images.addSimple` with multipart form data. The client uses
 `httpx` and calls:
 
 - `pwg.session.login`
-- `pwg.categories.getList`
+- `pwg.categories.getAdminList`
 - `pwg.categories.add`
 - `pwg.images.addSimple`
 - `pwg.images.search`
