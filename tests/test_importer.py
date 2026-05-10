@@ -172,7 +172,7 @@ def test_existing_checksum_skips_upload_but_keeps_share_association(
         ImportAction.ASSOCIATE,
     ]
     assert piwigo.uploads == []
-    assert piwigo.associations == [(99, 2)]
+    assert piwigo.associations == [(99, 1), (99, 2)]
 
 
 def test_existing_checksum_updates_privacy_level(tmp_path: Path) -> None:

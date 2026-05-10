@@ -101,6 +101,11 @@ class PiwigoImporter:
                         image_id=image_id,
                         level=self._config.default_level,
                     )
+                if not dry_run and target_album_id is not None:
+                    self._piwigo.associate_image(
+                        image_id=image_id,
+                        category_id=target_album_id,
+                    )
             else:
                 events.append(
                     ImportEvent(
