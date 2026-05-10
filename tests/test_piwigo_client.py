@@ -112,6 +112,30 @@ def test_find_or_create_album_resolves_nested_album_by_parent_relationship() -> 
     assert calls == ["pwg.categories.getList"]
 
 
+def test_find_or_create_album_resolves_categories_with_uppercats_paths() -> None:
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        data = dict(httpx.QueryParams(request.content.decode()))
+        calls.append(data["method"])
+        return json_response(
+            {
+                "categories": [
+                    {"id": 1, "name": "Travel", "uppercats": "1"},
+                    {"id": 3, "name": "Nested Album", "uppercats": "1,3"},
+                ]
+            }
+        )
+
+    client = PiwigoClient(
+        "https://photos.example",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    assert client.find_or_create_album("Travel / Nested Album") == 3
+    assert calls == ["pwg.categories.getList"]
+
+
 def test_find_or_create_album_creates_missing_child_under_existing_parent() -> None:
     calls: list[tuple[str, dict[str, str]]] = []
 

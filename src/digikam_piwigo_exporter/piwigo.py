@@ -222,9 +222,17 @@ def _extract_id(result: Any, key: str) -> int:
 
 
 def _category_parent_id(category: dict[str, Any]) -> int | None:
+    uppercats = category.get("uppercats")
+    if uppercats not in (None, ""):
+        text = str(uppercats)
+        separator = "," if "," in text else "/"
+        parts = [part for part in text.split(separator) if part]
+        if len(parts) <= 1:
+            return None
+        return int(parts[-2])
+
     value = (
         category.get("id_uppercat")
-        or category.get("uppercats")
         or category.get("parent")
         or category.get("parent_id")
     )
@@ -233,10 +241,6 @@ def _category_parent_id(category: dict[str, Any]) -> int | None:
     if isinstance(value, int):
         return value
     text = str(value)
-    if "," in text:
-        return int(text.split(",")[-1])
-    if "/" in text:
-        return int(text.split("/")[-1])
     return int(text)
 
 

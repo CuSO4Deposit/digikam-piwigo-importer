@@ -17,6 +17,8 @@ class PiwigoGateway(Protocol):
 
     def find_or_create_album(self, album_path: str) -> int: ...
 
+    def find_album(self, album_path: str) -> int | None: ...
+
     def find_image_by_checksum(self, checksum: str) -> int | None: ...
 
     def upload_simple(
@@ -65,10 +67,10 @@ class PiwigoImporter:
             raise NotADirectoryError(input_folder)
 
         events: list[ImportEvent] = []
-        target_album_id = self._piwigo.find_or_create_album(album)
+        target_album_id = self._album_id(album, dry_run=dry_run)
         share_album_ids = {
-            album_path: self._piwigo.find_or_create_album(album_path)
-            for album_path in set(self._config.share_albums.values())
+            album_path: self._album_id(album_path, dry_run=dry_run)
+            for album_path in dict.fromkeys(self._config.share_albums.values())
         }
 
         for image_path in scan_images(input_folder):
@@ -133,3 +135,8 @@ class PiwigoImporter:
             for chunk in iter(lambda: handle.read(1024 * 1024), b""):
                 digest.update(chunk)
         return digest.hexdigest()
+
+    def _album_id(self, album_path: str, *, dry_run: bool) -> int | None:
+        if dry_run:
+            return self._piwigo.find_album(album_path)
+        return self._piwigo.find_or_create_album(album_path)

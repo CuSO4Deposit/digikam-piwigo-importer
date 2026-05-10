@@ -11,6 +11,8 @@ class FakePiwigo:
     def __init__(self) -> None:
         self.uploads: list[dict] = []
         self.associations: list[tuple[int, int]] = []
+        self.created_or_found_albums: list[str] = []
+        self.found_albums: list[str] = []
         self.albums = {
             "Trips": 1,
             "Shared / Family": 2,
@@ -21,7 +23,12 @@ class FakePiwigo:
         pass
 
     def find_or_create_album(self, album_path: str) -> int:
+        self.created_or_found_albums.append(album_path)
         return self.albums[album_path]
+
+    def find_album(self, album_path: str) -> int | None:
+        self.found_albums.append(album_path)
+        return self.albums.get(album_path)
 
     def find_image_by_checksum(self, checksum: str) -> int | None:
         return self.existing_by_checksum.get(checksum)
@@ -86,6 +93,30 @@ def test_dry_run_reports_upload_and_share_association_without_writes(
     ]
     assert piwigo.uploads == []
     assert piwigo.associations == []
+    assert piwigo.created_or_found_albums == []
+    assert piwigo.found_albums == ["Trips", "Shared / Family"]
+
+
+def test_dry_run_does_not_create_missing_albums(tmp_path: Path) -> None:
+    image_path = tmp_path / "photo.jpg"
+    write_image(image_path)
+    write_sidecar(image_path)
+    piwigo = FakePiwigo()
+    piwigo.albums = {}
+    importer = PiwigoImporter(
+        piwigo=piwigo,
+        config=ImportConfig(share_albums={"share-family": "Shared / Family"}),
+    )
+
+    actions = importer.import_folder(tmp_path, "Trips", dry_run=True)
+
+    assert [action.kind for action in actions] == [
+        ImportAction.UPLOAD,
+        ImportAction.ASSOCIATE,
+    ]
+    assert [action.album_id for action in actions] == [None, None]
+    assert piwigo.created_or_found_albums == []
+    assert piwigo.found_albums == ["Trips", "Shared / Family"]
 
 
 def test_import_uploads_metadata_and_associates_share_album(tmp_path: Path) -> None:
