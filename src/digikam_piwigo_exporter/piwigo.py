@@ -167,14 +167,13 @@ class PiwigoClient:
             data["comment"] = comment
         if level is not None:
             data["level"] = str(level)
-        if self.api_key:
-            data["api_key"] = self.api_key
 
         with image_path.open("rb") as image:
             response = self._client.post(
                 self.ws_url,
                 data=data,
                 files={"image": (image_path.name, image)},
+                headers=self._auth_headers(),
             )
         result = self._parse_response(response)
         return _extract_id(result, "image_id")
@@ -216,10 +215,17 @@ class PiwigoClient:
 
     def call(self, method: str, **params: Any) -> Any:
         data = {"method": method, **params}
-        if self.api_key:
-            data["api_key"] = self.api_key
-        response = self._client.post(self.ws_url, data=data)
+        response = self._client.post(
+            self.ws_url,
+            data=data,
+            headers=self._auth_headers(),
+        )
         return self._parse_response(response)
+
+    def _auth_headers(self) -> dict[str, str]:
+        if not self.api_key:
+            return {}
+        return {"Authorization": self.api_key}
 
     def close(self) -> None:
         self._client.close()

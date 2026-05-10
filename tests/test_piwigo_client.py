@@ -32,6 +32,25 @@ def test_login_posts_credentials_to_ws_endpoint() -> None:
     assert "password=secret" in body
 
 
+def test_api_key_auth_uses_authorization_header() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return json_response({})
+
+    client = PiwigoClient(
+        "https://photos.example",
+        api_key="pkid-example:secret",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    client.call("pwg.categories.getList")
+
+    assert requests[0].headers["Authorization"] == "pkid-example:secret"
+    assert "api_key" not in requests[0].content.decode()
+
+
 def test_upload_simple_posts_image_and_metadata(tmp_path: Path) -> None:
     image_path = tmp_path / "photo.jpg"
     image_path.write_bytes(b"fake image")

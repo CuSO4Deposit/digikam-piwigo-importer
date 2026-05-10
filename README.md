@@ -37,7 +37,8 @@ If your Piwigo supports API keys, you can use:
 export PIWIGO_API_KEY='key-value'
 ```
 
-Config-file auth is supported, but environment variables take precedence.
+Piwigo 16 API keys are sent in the `Authorization` HTTP header. Config-file
+auth is supported, but environment variables take precedence.
 
 ## Usage
 
