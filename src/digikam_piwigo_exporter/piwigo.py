@@ -127,6 +127,24 @@ class PiwigoClient:
             multiple_value_mode="append",
         )
 
+    def find_image_by_checksum(self, checksum: str) -> int | None:
+        result = self.call("pwg.images.search", query=checksum)
+        images = result.get("images", result if isinstance(result, list) else [])
+        matches = [
+            int(image["id"])
+            for image in images
+            if checksum
+            in {
+                str(image.get("md5sum", "")),
+                str(image.get("checksum", "")),
+                str(image.get("comment", "")),
+                str(image.get("name", "")),
+            }
+        ]
+        if len(matches) > 1:
+            raise PiwigoApiError(f"Ambiguous existing image checksum: {checksum}")
+        return matches[0] if matches else None
+
     def call(self, method: str, **params: Any) -> Any:
         data = {"method": method, **params}
         if self.api_key:
