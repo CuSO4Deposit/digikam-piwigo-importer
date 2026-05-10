@@ -2,7 +2,7 @@ from pathlib import Path
 
 import httpx
 
-from digikam_piwigo_exporter.piwigo import PiwigoClient
+from digikam_piwigo_exporter.piwigo import PiwigoApiError, PiwigoClient
 
 
 def json_response(payload: dict) -> httpx.Response:
@@ -112,6 +112,32 @@ def test_upload_simple_posts_image_and_metadata(tmp_path: Path) -> None:
     assert "level" in body
     assert "0" in body
     assert "photo.jpg" in body
+
+
+def test_non_json_response_raises_diagnostic_error() -> None:
+    client = PiwigoClient(
+        "https://photos.example",
+        http_client=httpx.Client(
+            transport=httpx.MockTransport(
+                lambda _request: httpx.Response(
+                    200,
+                    headers={"content-type": "text/html; charset=utf-8"},
+                    text="<html>upload failed</html>",
+                )
+            )
+        ),
+    )
+
+    try:
+        client.call("pwg.session.getStatus")
+    except PiwigoApiError as error:
+        message = str(error)
+        assert "non-JSON response" in message
+        assert "HTTP 200" in message
+        assert "text/html" in message
+        assert "upload failed" in message
+    else:
+        raise AssertionError("expected diagnostic error")
 
 
 def test_find_or_create_album_uses_existing_matching_path() -> None:

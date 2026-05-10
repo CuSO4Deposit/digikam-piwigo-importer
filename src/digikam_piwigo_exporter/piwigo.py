@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from json import JSONDecodeError
 from pathlib import Path
 from typing import Any
 
@@ -242,7 +243,15 @@ class PiwigoClient:
             if body:
                 message = f"{message}: {body}"
             raise PiwigoApiError(message) from error
-        payload = response.json()
+        try:
+            payload = response.json()
+        except JSONDecodeError as error:
+            raise PiwigoApiError(
+                "Piwigo non-JSON response "
+                f"(HTTP {response.status_code}, "
+                f"content-type: {response.headers.get('content-type', 'unknown')}): "
+                f"{_response_snippet(response)}"
+            ) from error
         if payload.get("stat") != "ok":
             message = payload.get("message") or payload.get("err") or payload
             raise PiwigoApiError(f"Piwigo API error: {message}")
@@ -255,6 +264,15 @@ def _extract_id(result: Any, key: str) -> int:
         if value is not None:
             return int(value)
     raise PiwigoApiError(f"Piwigo response did not include {key}: {result!r}")
+
+
+def _response_snippet(response: httpx.Response, *, limit: int = 500) -> str:
+    text = response.text.strip()
+    if not text:
+        return "<empty response body>"
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit]}..."
 
 
 def _category_parent_id(category: dict[str, Any]) -> int | None:
