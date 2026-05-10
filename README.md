@@ -87,6 +87,17 @@ digikam-piwigo-import \
   --config examples/config.toml
 ```
 
+First import without checksum lookups:
+
+```sh
+digikam-piwigo-import \
+  --input /photos/DigiKam/Album \
+  --album "Trips / Kyoto" \
+  --base-url https://photos.example.com \
+  --config examples/config.toml \
+  --no-dedupe-check
+```
+
 The API explorer for a Piwigo instance is usually available at:
 
 ```text
@@ -152,6 +163,10 @@ Piwigo.
 The importer computes a SHA-256 checksum for each local file and asks Piwigo
 for an existing image before uploading. Existing images are skipped and still
 get share-album associations checked.
+
+Use `--no-dedupe-check` for a known-empty first import to skip per-file
+`pwg.images.search` calls. This is faster, but it is not idempotent: if the
+same files already exist in Piwigo, they will be uploaded again.
 
 Dry-run mode logs planned uploads, skips, and associations without write calls.
 

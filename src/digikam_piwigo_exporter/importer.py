@@ -77,6 +77,7 @@ class PiwigoImporter:
         album: str,
         *,
         dry_run: bool,
+        dedupe_check: bool = True,
     ) -> list[ImportEvent]:
         if not input_folder.is_dir():
             raise NotADirectoryError(input_folder)
@@ -90,8 +91,12 @@ class PiwigoImporter:
 
         for image_path in scan_images(input_folder):
             metadata = extract_metadata(image_path)
-            checksum = self.checksum(image_path)
-            existing_id = self._piwigo.find_image_by_checksum(checksum)
+            checksum = self.checksum(image_path) if dedupe_check else None
+            existing_id = (
+                self._piwigo.find_image_by_checksum(checksum)
+                if checksum is not None
+                else None
+            )
             tags = [*metadata.tags, *metadata.hierarchical_tags]
             sanitized = _sanitize_piwigo_text(
                 image_path=image_path,
@@ -134,7 +139,11 @@ class PiwigoImporter:
                         kind=ImportAction.UPLOAD,
                         image_path=image_path,
                         album_id=target_album_id,
-                        message=f"upload to album {album}",
+                        message=(
+                            f"upload to album {album}"
+                            if dedupe_check
+                            else f"upload to album {album} without dedupe check"
+                        ),
                     )
                 )
                 image_id = -1

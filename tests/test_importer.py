@@ -14,6 +14,7 @@ class FakePiwigo:
         self.info_updates: list[dict] = []
         self.created_or_found_albums: list[str] = []
         self.found_albums: list[str] = []
+        self.checksum_searches: list[str] = []
         self.albums = {
             "Trips": 1,
             "Shared / Family": 2,
@@ -37,6 +38,7 @@ class FakePiwigo:
         return self.albums.get(album_path)
 
     def find_image_by_checksum(self, checksum: str) -> int | None:
+        self.checksum_searches.append(checksum)
         return self.existing_by_checksum.get(checksum)
 
     def upload_simple(self, **kwargs) -> int:
@@ -222,6 +224,31 @@ def test_existing_checksum_updates_privacy_level(tmp_path: Path) -> None:
     importer.import_folder(tmp_path, "Trips", dry_run=False)
 
     assert piwigo.info_updates == [{"image_id": 99, "level": 8}]
+
+
+def test_no_dedupe_check_uploads_without_checksum_search(tmp_path: Path) -> None:
+    image_path = tmp_path / "photo.jpg"
+    write_image(image_path)
+    write_sidecar(image_path)
+    piwigo = FakePiwigo()
+    importer = PiwigoImporter(
+        piwigo=piwigo,
+        config=ImportConfig(share_albums={"share-family": "Shared / Family"}),
+    )
+
+    actions = importer.import_folder(
+        tmp_path,
+        "Trips",
+        dry_run=False,
+        dedupe_check=False,
+    )
+
+    assert [action.kind for action in actions] == [
+        ImportAction.UPLOAD,
+        ImportAction.ASSOCIATE,
+    ]
+    assert piwigo.checksum_searches == []
+    assert len(piwigo.uploads) == 1
 
 
 def test_strips_four_byte_unicode_before_upload(tmp_path: Path) -> None:

@@ -20,6 +20,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", type=Path)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(
+        "--no-dedupe-check",
+        action="store_true",
+        help="Skip per-file checksum lookups before upload. Faster for first imports, but not idempotent.",
+    )
+    parser.add_argument(
         "--check-auth",
         action="store_true",
         help="Check Piwigo authentication and exit.",
@@ -57,7 +62,12 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
         importer = PiwigoImporter(piwigo=client, config=config)
-        events = importer.import_folder(args.input, args.album, dry_run=args.dry_run)
+        events = importer.import_folder(
+            args.input,
+            args.album,
+            dry_run=args.dry_run,
+            dedupe_check=not args.no_dedupe_check,
+        )
         for event in events:
             logging.info("%s %s: %s", event.kind, event.image_path, event.message)
     finally:
