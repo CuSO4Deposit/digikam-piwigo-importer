@@ -442,3 +442,32 @@ def test_update_image_info_posts_privacy_level() -> None:
     assert "method=pwg.images.setInfo" in body
     assert "image_id=42" in body
     assert "level=8" in body
+
+
+def test_get_images_by_tag_pages_until_empty() -> None:
+    requests: list[dict[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        data = dict(httpx.QueryParams(request.content.decode()))
+        requests.append(data)
+        page = data["page"]
+        if page == "0":
+            return json_response({"images": [{"id": 10}, {"id": "11"}]})
+        return json_response({"images": []})
+
+    client = PiwigoClient(
+        "https://photos.example",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    assert list(client.get_images_by_tag("share-family", per_page=2)) == [10, 11]
+    assert [request["method"] for request in requests] == [
+        "pwg.tags.getImages",
+        "pwg.tags.getImages",
+    ]
+    assert [request["tag_name"] for request in requests] == [
+        "share-family",
+        "share-family",
+    ]
+    assert [request["page"] for request in requests] == ["0", "1"]
+    assert [request["per_page"] for request in requests] == ["2", "2"]

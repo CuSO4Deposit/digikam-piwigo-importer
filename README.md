@@ -98,6 +98,15 @@ digikam-piwigo-import \
   --no-dedupe-check
 ```
 
+Repair share-album associations for photos already in Piwigo:
+
+```sh
+digikam-piwigo-reconcile-shares \
+  --base-url https://photos.example.com \
+  --config examples/config.toml \
+  --dry-run
+```
+
 The API explorer for a Piwigo instance is usually available at:
 
 ```text
@@ -142,6 +151,11 @@ An image tagged `share-family` is uploaded once to the target album, then
 associated with `Shared / Family`. Configure Piwigo user/group ACLs on those
 albums.
 
+If photos were uploaded before a share-tag mapping existed, run
+`digikam-piwigo-reconcile-shares`. It queries Piwigo's tag index with
+`pwg.tags.getImages` for each configured share tag and appends matching images
+to the mapped album. It does not read local DigiKam files or upload images.
+
 For album-based access control, keep image privacy level public:
 
 ```toml
@@ -172,8 +186,8 @@ Dry-run mode logs planned uploads, skips, and associations without write calls.
 
 ## Current API Notes
 
-Uploads use `pwg.images.addSimple` with multipart form data. The client uses
-`httpx` and calls:
+Uploads use `pwg.images.addSimple` with multipart form data. Share
+reconciliation uses Piwigo's tag index. The client uses `httpx` and calls:
 
 - `pwg.session.login`
 - `pwg.categories.getAdminList`
@@ -181,6 +195,7 @@ Uploads use `pwg.images.addSimple` with multipart form data. The client uses
 - `pwg.images.addSimple`
 - `pwg.images.search`
 - `pwg.images.setInfo`
+- `pwg.tags.getImages`
 
 If your instance exposes a different idempotency search method, adjust
 `PiwigoClient.find_image_by_checksum`.

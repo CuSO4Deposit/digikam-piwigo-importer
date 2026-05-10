@@ -21,6 +21,7 @@ dev = [
 
 [project.scripts]
 digikam-piwigo-import = "digikam_piwigo_exporter.cli:main"
+digikam-piwigo-reconcile-shares = "digikam_piwigo_exporter.reconcile_cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

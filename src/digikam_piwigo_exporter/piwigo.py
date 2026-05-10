@@ -210,6 +210,21 @@ class PiwigoClient:
             raise PiwigoApiError(f"Ambiguous existing image checksum: {checksum}")
         return matches[0] if matches else None
 
+    def get_images_by_tag(self, tag_name: str, *, per_page: int = 100) -> Iterable[int]:
+        page = 0
+        while True:
+            result = self.call(
+                "pwg.tags.getImages",
+                tag_name=tag_name,
+                page=str(page),
+                per_page=str(per_page),
+            )
+            images = result.get("images", result if isinstance(result, list) else [])
+            if not images:
+                return
+            yield from (int(image["id"]) for image in images)
+            page += 1
+
     def call(self, method: str, **params: Any) -> Any:
         data = {"method": method, **params}
         response = self._client.post(
