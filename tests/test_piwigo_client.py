@@ -124,7 +124,31 @@ def test_find_or_create_album_uses_existing_matching_path() -> None:
     )
 
     assert client.find_or_create_album("Shared / Family") == 5
-    assert calls == ["pwg.categories.getList"]
+    assert calls == ["pwg.categories.getAdminList"]
+
+
+def test_find_or_create_album_raises_on_duplicate_full_paths() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return json_response(
+            {
+                "categories": [
+                    {"id": 64, "name": "Family", "fullname": "Shared / Family"},
+                    {"id": 69, "name": "Family", "fullname": "Shared / Family"},
+                ]
+            }
+        )
+
+    client = PiwigoClient(
+        "https://photos.example",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    try:
+        client.find_or_create_album("Shared / Family")
+    except Exception as error:
+        assert "Ambiguous album path" in str(error)
+    else:
+        raise AssertionError("expected ambiguous album path")
 
 
 def test_find_or_create_album_requests_private_categories_too() -> None:
@@ -141,10 +165,11 @@ def test_find_or_create_album_requests_private_categories_too() -> None:
     )
 
     assert client.find_or_create_album("Shared") == 1
-    assert requests[0]["public"] == "false"
+    assert requests[0]["method"] == "pwg.categories.getAdminList"
+    assert requests[0]["recursive"] == "false"
 
 
-def test_find_or_create_album_resolves_nested_album_by_parent_relationship() -> None:
+def test_find_or_create_album_resolves_nested_album_by_fullname() -> None:
     calls: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -153,9 +178,12 @@ def test_find_or_create_album_resolves_nested_album_by_parent_relationship() -> 
         return json_response(
             {
                 "categories": [
-                    {"id": 1, "name": "Travel"},
-                    {"id": 2, "name": "Travel", "id_uppercat": 9},
-                    {"id": 3, "name": "Nested Album", "id_uppercat": 1},
+                    {"id": 1, "name": "Travel", "fullname": "Travel"},
+                    {
+                        "id": 3,
+                        "name": "Nested Album",
+                        "fullname": "Travel / Nested Album",
+                    },
                 ]
             }
         )
@@ -166,10 +194,10 @@ def test_find_or_create_album_resolves_nested_album_by_parent_relationship() -> 
     )
 
     assert client.find_or_create_album("Travel / Nested Album") == 3
-    assert calls == ["pwg.categories.getList"]
+    assert calls == ["pwg.categories.getAdminList"]
 
 
-def test_find_or_create_album_resolves_categories_with_uppercats_paths() -> None:
+def test_find_or_create_album_raises_when_nested_path_is_duplicate() -> None:
     calls: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -178,8 +206,16 @@ def test_find_or_create_album_resolves_categories_with_uppercats_paths() -> None
         return json_response(
             {
                 "categories": [
-                    {"id": 1, "name": "Travel", "uppercats": "1"},
-                    {"id": 3, "name": "Nested Album", "uppercats": "1,3"},
+                    {
+                        "id": 3,
+                        "name": "Nested Album",
+                        "fullname": "Travel / Nested Album",
+                    },
+                    {
+                        "id": 4,
+                        "name": "Nested Album",
+                        "fullname": "Travel / Nested Album",
+                    },
                 ]
             }
         )
@@ -189,11 +225,16 @@ def test_find_or_create_album_resolves_categories_with_uppercats_paths() -> None
         http_client=httpx.Client(transport=httpx.MockTransport(handler)),
     )
 
-    assert client.find_or_create_album("Travel / Nested Album") == 3
-    assert calls == ["pwg.categories.getList"]
+    try:
+        client.find_or_create_album("Travel / Nested Album")
+    except Exception as error:
+        assert "Ambiguous album path" in str(error)
+    else:
+        raise AssertionError("expected ambiguous album path")
+    assert calls == ["pwg.categories.getAdminList"]
 
 
-def test_find_or_create_album_treats_zero_parent_as_root() -> None:
+def test_find_or_create_album_treats_zero_parent_as_root_when_creating_child() -> None:
     calls: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -214,7 +255,36 @@ def test_find_or_create_album_treats_zero_parent_as_root() -> None:
     )
 
     assert client.find_or_create_album("Travel / Nested Album") == 3
-    assert calls == ["pwg.categories.getList"]
+    assert calls == [
+        "pwg.categories.getAdminList",
+        "pwg.categories.getAdminList",
+        "pwg.categories.getAdminList",
+    ]
+
+
+def test_find_or_create_album_resolves_path_when_root_name_is_duplicated() -> None:
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        data = dict(httpx.QueryParams(request.content.decode()))
+        calls.append(data["method"])
+        return json_response(
+            {
+                "categories": [
+                    {"id": 1, "name": "Shared", "fullname": "Shared"},
+                    {"id": 2, "name": "Shared", "fullname": "Shared"},
+                    {"id": 3, "name": "Family", "fullname": "Shared / Family"},
+                ]
+            }
+        )
+
+    client = PiwigoClient(
+        "https://photos.example",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    assert client.find_or_create_album("Shared / Family") == 3
+    assert calls == ["pwg.categories.getAdminList"]
 
 
 def test_find_or_create_album_creates_missing_child_under_existing_parent() -> None:
@@ -235,10 +305,44 @@ def test_find_or_create_album_creates_missing_child_under_existing_parent() -> N
     )
 
     assert client.find_or_create_album("Travel / Nested Album") == 3
-    assert [method for method, _data in calls] == [
-        "pwg.categories.getList",
-        "pwg.categories.add",
+    assert [method for method, _data in calls].count("pwg.categories.add") == 1
+
+
+def test_find_or_create_album_queries_children_by_parent_album() -> None:
+    calls: list[dict[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        data = dict(httpx.QueryParams(request.content.decode()))
+        calls.append(data)
+        if data.get("cat_id") == "68":
+            return json_response(
+                {
+                    "categories": [
+                        {"id": 69, "name": "Family", "id_uppercat": "68"},
+                    ]
+                }
+            )
+        return json_response(
+            {
+                "categories": [
+                    {"id": 68, "name": "Shared", "id_uppercat": None},
+                ]
+            }
+        )
+
+    client = PiwigoClient(
+        "https://photos.example",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    assert client.find_or_create_album("Shared / Family") == 69
+    assert [call.get("cat_id") for call in calls] == [None, None, "68"]
+    assert [call["method"] for call in calls] == [
+        "pwg.categories.getAdminList",
+        "pwg.categories.getAdminList",
+        "pwg.categories.getAdminList",
     ]
+    assert [call["recursive"] for call in calls] == ["false", "false", "false"]
 
 
 def test_find_or_create_album_marks_created_album_private_when_requested() -> None:
@@ -261,10 +365,7 @@ def test_find_or_create_album_marks_created_album_private_when_requested() -> No
         client.find_or_create_album("Travel / Nested Album", created_status="private")
         == 3
     )
-    assert [method for method, _data in calls] == [
-        "pwg.categories.getList",
-        "pwg.categories.add",
-    ]
+    assert [method for method, _data in calls].count("pwg.categories.add") == 1
 
 
 def test_associate_image_posts_category_update() -> None:
