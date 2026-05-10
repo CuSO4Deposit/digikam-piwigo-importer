@@ -69,6 +69,35 @@ def write_sidecar(path: Path) -> None:
     )
 
 
+def write_sidecar_with_description(path: Path, description: str) -> None:
+    path.with_suffix(".jpg.xmp").write_text(
+        f"""<x:xmpmeta xmlns:x="adobe:ns:meta/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:RDF>
+    <rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <dc:title><rdf:Alt><rdf:li xml:lang="x-default">Photo title</rdf:li></rdf:Alt></dc:title>
+      <dc:description><rdf:Alt><rdf:li xml:lang="x-default">{description}</rdf:li></rdf:Alt></dc:description>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>""",
+        encoding="utf-8",
+    )
+
+
+def write_sidecar_with_tags(path: Path, tags: list[str]) -> None:
+    tag_items = "".join(f"<rdf:li>{tag}</rdf:li>" for tag in tags)
+    path.with_suffix(".jpg.xmp").write_text(
+        f"""<x:xmpmeta xmlns:x="adobe:ns:meta/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:RDF>
+    <rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <dc:title><rdf:Alt><rdf:li xml:lang="x-default">Photo title</rdf:li></rdf:Alt></dc:title>
+      <dc:subject><rdf:Bag>{tag_items}</rdf:Bag></dc:subject>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>""",
+        encoding="utf-8",
+    )
+
+
 def test_scan_images_recurses_supported_extensions(tmp_path: Path) -> None:
     write_image(tmp_path / "a.jpg")
     nested = tmp_path / "nested"
@@ -193,3 +222,46 @@ def test_existing_checksum_updates_privacy_level(tmp_path: Path) -> None:
     importer.import_folder(tmp_path, "Trips", dry_run=False)
 
     assert piwigo.info_updates == [{"image_id": 99, "level": 8}]
+
+
+def test_strips_four_byte_unicode_before_upload(tmp_path: Path) -> None:
+    image_path = tmp_path / "photo.jpg"
+    write_image(image_path)
+    write_sidecar_with_description(image_path, "Look 👉 here")
+    piwigo = FakePiwigo()
+    importer = PiwigoImporter(
+        piwigo=piwigo,
+        config=ImportConfig(share_albums={}),
+    )
+
+    actions = importer.import_folder(tmp_path, "Trips", dry_run=False)
+
+    assert piwigo.uploads[0]["comment"] == "Look  here"
+    assert any(
+        action.kind == ImportAction.SKIP
+        and "stripped unsupported Piwigo characters from description" in action.message
+        and "U+1F449" in action.message
+        for action in actions
+    )
+
+
+def test_strips_four_byte_unicode_from_tags_before_upload(tmp_path: Path) -> None:
+    image_path = tmp_path / "photo.jpg"
+    write_image(image_path)
+    write_sidecar_with_tags(image_path, ["tag👉a", "share-family"])
+    piwigo = FakePiwigo()
+    importer = PiwigoImporter(
+        piwigo=piwigo,
+        config=ImportConfig(share_albums={"share-family": "Shared / Family"}),
+    )
+
+    actions = importer.import_folder(tmp_path, "Trips", dry_run=False)
+
+    assert piwigo.uploads[0]["tags"] == ["taga", "share-family"]
+    assert piwigo.associations == [(42, 2)]
+    assert any(
+        action.kind == ImportAction.SKIP
+        and "stripped unsupported Piwigo characters from tag" in action.message
+        and "U+1F449" in action.message
+        for action in actions
+    )
