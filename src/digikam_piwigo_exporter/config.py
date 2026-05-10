@@ -13,6 +13,7 @@ class ImportConfig:
     api_key: str | None = None
     share_albums: dict[str, str] = field(default_factory=dict)
     default_level: int | None = None
+    created_album_status: str | None = None
 
 
 def load_config(path: Path | None) -> ImportConfig:
@@ -31,4 +32,5 @@ def load_config(path: Path | None) -> ImportConfig:
         api_key=os.environ.get("PIWIGO_API_KEY") or auth.get("api_key"),
         share_albums=dict(share_albums),
         default_level=piwigo.get("default_level"),
+        created_album_status=piwigo.get("created_album_status"),
     )

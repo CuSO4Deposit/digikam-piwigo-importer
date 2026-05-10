@@ -23,7 +23,12 @@ class FakePiwigo:
     def login(self) -> None:
         pass
 
-    def find_or_create_album(self, album_path: str) -> int:
+    def find_or_create_album(
+        self,
+        album_path: str,
+        *,
+        created_status: str | None = None,
+    ) -> int:
         self.created_or_found_albums.append(album_path)
         return self.albums[album_path]
 

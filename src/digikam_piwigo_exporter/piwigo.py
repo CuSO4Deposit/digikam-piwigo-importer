@@ -42,7 +42,12 @@ class PiwigoClient:
             password=self.password,
         )
 
-    def find_or_create_album(self, album_path: str) -> int:
+    def find_or_create_album(
+        self,
+        album_path: str,
+        *,
+        created_status: str | None = None,
+    ) -> int:
         parts = [part.strip() for part in album_path.split("/") if part.strip()]
         if not parts:
             raise PiwigoApiError("Album path is empty")
@@ -60,6 +65,8 @@ class PiwigoClient:
                 payload: dict[str, Any] = {"name": part}
                 if parent_id is not None:
                     payload["parent"] = parent_id
+                if created_status is not None:
+                    payload["status"] = created_status
                 result = self.call("pwg.categories.add", **payload)
                 parent_id = _extract_id(result, "id")
                 categories.append(
@@ -248,9 +255,12 @@ def _category_parent_id(category: dict[str, Any]) -> int | None:
     if value in (None, ""):
         return None
     if isinstance(value, int):
+        if value == 0:
+            return None
         return value
     text = str(value)
-    return int(text)
+    parent_id = int(text)
+    return None if parent_id == 0 else parent_id
 
 
 def _normalize_album_path(album_path: str) -> str:

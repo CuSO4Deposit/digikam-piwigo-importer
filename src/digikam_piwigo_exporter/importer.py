@@ -15,7 +15,12 @@ from digikam_piwigo_exporter.scanner import scan_images
 class PiwigoGateway(Protocol):
     def login(self) -> None: ...
 
-    def find_or_create_album(self, album_path: str) -> int: ...
+    def find_or_create_album(
+        self,
+        album_path: str,
+        *,
+        created_status: str | None = None,
+    ) -> int: ...
 
     def find_album(self, album_path: str) -> int | None: ...
 
@@ -146,4 +151,7 @@ class PiwigoImporter:
     def _album_id(self, album_path: str, *, dry_run: bool) -> int | None:
         if dry_run:
             return self._piwigo.find_album(album_path)
-        return self._piwigo.find_or_create_album(album_path)
+        return self._piwigo.find_or_create_album(
+            album_path,
+            created_status=self._config.created_album_status,
+        )

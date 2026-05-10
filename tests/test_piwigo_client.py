@@ -138,6 +138,30 @@ def test_find_or_create_album_resolves_categories_with_uppercats_paths() -> None
     assert calls == ["pwg.categories.getList"]
 
 
+def test_find_or_create_album_treats_zero_parent_as_root() -> None:
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        data = dict(httpx.QueryParams(request.content.decode()))
+        calls.append(data["method"])
+        return json_response(
+            {
+                "categories": [
+                    {"id": 1, "name": "Travel", "id_uppercat": "0"},
+                    {"id": 3, "name": "Nested Album", "id_uppercat": "1"},
+                ]
+            }
+        )
+
+    client = PiwigoClient(
+        "https://photos.example",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    assert client.find_or_create_album("Travel / Nested Album") == 3
+    assert calls == ["pwg.categories.getList"]
+
+
 def test_find_or_create_album_creates_missing_child_under_existing_parent() -> None:
     calls: list[tuple[str, dict[str, str]]] = []
 
@@ -156,6 +180,32 @@ def test_find_or_create_album_creates_missing_child_under_existing_parent() -> N
     )
 
     assert client.find_or_create_album("Travel / Nested Album") == 3
+    assert [method for method, _data in calls] == [
+        "pwg.categories.getList",
+        "pwg.categories.add",
+    ]
+
+
+def test_find_or_create_album_marks_created_album_private_when_requested() -> None:
+    calls: list[tuple[str, dict[str, str]]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        data = dict(httpx.QueryParams(request.content.decode()))
+        calls.append((data["method"], data))
+        if data["method"] == "pwg.categories.add":
+            assert data["status"] == "private"
+            return json_response({"id": 3})
+        return json_response({"categories": [{"id": 1, "name": "Travel"}]})
+
+    client = PiwigoClient(
+        "https://photos.example",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    assert (
+        client.find_or_create_album("Travel / Nested Album", created_status="private")
+        == 3
+    )
     assert [method for method, _data in calls] == [
         "pwg.categories.getList",
         "pwg.categories.add",

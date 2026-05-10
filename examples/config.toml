@@ -8,6 +8,8 @@
 # Piwigo privacy level. Leave unset to let Piwigo use its default.
 # 0 = everybody, 1 = contacts, 2 = friends, 4 = family, 8 = admins
 default_level = 0
+# New albums created by this importer should be private or public.
+created_album_status = "private"
 
 [share_albums]
 share-family = "Shared / Family"

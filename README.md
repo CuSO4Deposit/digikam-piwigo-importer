@@ -111,11 +111,15 @@ For album-based access control, keep image privacy level public:
 ```toml
 [piwigo]
 default_level = 0
+created_album_status = "private"
 ```
 
 Piwigo evaluates both album ACLs and per-image privacy level. If you set
 `default_level = 8`, the image itself is restricted to admins even when it is in
 an album that other users can access.
+
+`created_album_status = "private"` makes albums created by this importer private
+at creation time. Existing albums are not changed; manage their ACLs in Piwigo.
 
 ## Idempotency
 
