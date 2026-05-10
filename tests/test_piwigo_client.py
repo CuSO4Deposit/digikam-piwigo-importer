@@ -87,6 +87,55 @@ def test_find_or_create_album_uses_existing_matching_path() -> None:
     assert calls == ["pwg.categories.getList"]
 
 
+def test_find_or_create_album_resolves_nested_album_by_parent_relationship() -> None:
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        data = dict(httpx.QueryParams(request.content.decode()))
+        calls.append(data["method"])
+        return json_response(
+            {
+                "categories": [
+                    {"id": 1, "name": "Travel"},
+                    {"id": 2, "name": "Travel", "id_uppercat": 9},
+                    {"id": 3, "name": "Nested Album", "id_uppercat": 1},
+                ]
+            }
+        )
+
+    client = PiwigoClient(
+        "https://photos.example",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    assert client.find_or_create_album("Travel / Nested Album") == 3
+    assert calls == ["pwg.categories.getList"]
+
+
+def test_find_or_create_album_creates_missing_child_under_existing_parent() -> None:
+    calls: list[tuple[str, dict[str, str]]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        data = dict(httpx.QueryParams(request.content.decode()))
+        calls.append((data["method"], data))
+        if data["method"] == "pwg.categories.add":
+            assert data["name"] == "Nested Album"
+            assert data["parent"] == "1"
+            return json_response({"id": 3})
+        return json_response({"categories": [{"id": 1, "name": "Travel"}]})
+
+    client = PiwigoClient(
+        "https://photos.example",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    assert client.find_or_create_album("Travel / Nested Album") == 3
+    assert [method for method, _data in calls] == [
+        "pwg.categories.getList",
+        "pwg.categories.add",
+    ]
+
+
 def test_associate_image_posts_category_update() -> None:
     requests: list[httpx.Request] = []
 

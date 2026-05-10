@@ -43,25 +43,32 @@ class PiwigoClient:
         )
 
     def find_or_create_album(self, album_path: str) -> int:
-        existing = self.find_album(album_path)
-        if existing is not None:
-            return existing
-
-        parent_id: int | None = None
         parts = [part.strip() for part in album_path.split("/") if part.strip()]
         if not parts:
             raise PiwigoApiError("Album path is empty")
 
-        current_path = ""
+        categories = self._get_categories()
+        existing = self._find_exact_album_path(categories, album_path)
+        if existing is not None:
+            return existing
+
+        parent_id: int | None = None
         for part in parts:
-            current_path = f"{current_path} / {part}" if current_path else part
-            existing = self.find_album(current_path)
+            existing = self._find_child_category(categories, part, parent_id)
             if existing is None:
+                created_parent_id = parent_id
                 payload: dict[str, Any] = {"name": part}
                 if parent_id is not None:
                     payload["parent"] = parent_id
                 result = self.call("pwg.categories.add", **payload)
                 parent_id = _extract_id(result, "id")
+                categories.append(
+                    {
+                        "id": parent_id,
+                        "name": part,
+                        "id_uppercat": created_parent_id,
+                    }
+                )
             else:
                 parent_id = existing
 
@@ -70,21 +77,63 @@ class PiwigoClient:
         return parent_id
 
     def find_album(self, album_path: str) -> int | None:
+        parts = [part.strip() for part in album_path.split("/") if part.strip()]
+        if not parts:
+            return None
+        parent_id: int | None = None
+        categories = self._get_categories()
+        existing = self._find_exact_album_path(categories, album_path)
+        if existing is not None:
+            return existing
+        for part in parts:
+            parent_id = self._find_child_category(categories, part, parent_id)
+            if parent_id is None:
+                return None
+        return parent_id
+
+    def _get_categories(self) -> list[dict[str, Any]]:
         result = self.call("pwg.categories.getList", recursive="true")
         categories = result.get(
             "categories", result if isinstance(result, list) else []
         )
+        return list(categories)
+
+    def _find_exact_album_path(
+        self,
+        categories: list[dict[str, Any]],
+        album_path: str,
+    ) -> int | None:
+        normalized_path = _normalize_album_path(album_path)
+        matches = [
+            int(category["id"])
+            for category in categories
+            if _normalize_album_path(str(category.get("global_rank", "")))
+            == normalized_path
+        ]
+        if len(matches) > 1:
+            raise PiwigoApiError(f"Ambiguous album path: {album_path}")
+        return matches[0] if matches else None
+
+    def _find_child_category(
+        self,
+        categories: list[dict[str, Any]],
+        name: str,
+        parent_id: int | None,
+    ) -> int | None:
         matches: list[int] = []
         for category in categories:
             category_id = int(category["id"])
-            names = {
-                str(category.get("global_rank", "")).strip(),
-                str(category.get("name", "")).strip(),
-            }
-            if album_path.strip() in names:
+            category_parent = _category_parent_id(category)
+            if (
+                str(category.get("name", "")).strip() == name
+                and category_parent == parent_id
+            ):
                 matches.append(category_id)
         if len(matches) > 1:
-            raise PiwigoApiError(f"Ambiguous album path or name: {album_path}")
+            parent_label = "root" if parent_id is None else str(parent_id)
+            raise PiwigoApiError(
+                f"Ambiguous album name {name!r} under parent {parent_label}"
+            )
         return matches[0] if matches else None
 
     def upload_simple(
@@ -170,3 +219,26 @@ def _extract_id(result: Any, key: str) -> int:
         if value is not None:
             return int(value)
     raise PiwigoApiError(f"Piwigo response did not include {key}: {result!r}")
+
+
+def _category_parent_id(category: dict[str, Any]) -> int | None:
+    value = (
+        category.get("id_uppercat")
+        or category.get("uppercats")
+        or category.get("parent")
+        or category.get("parent_id")
+    )
+    if value in (None, ""):
+        return None
+    if isinstance(value, int):
+        return value
+    text = str(value)
+    if "," in text:
+        return int(text.split(",")[-1])
+    if "/" in text:
+        return int(text.split("/")[-1])
+    return int(text)
+
+
+def _normalize_album_path(album_path: str) -> str:
+    return " / ".join(part.strip() for part in album_path.split("/") if part.strip())
