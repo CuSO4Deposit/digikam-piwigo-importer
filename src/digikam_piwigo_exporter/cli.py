@@ -20,6 +20,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", type=Path)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(
+        "--check-auth",
+        action="store_true",
+        help="Check Piwigo authentication and exit.",
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         help="Log debug details.",
@@ -43,6 +48,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     try:
         client.login()
+        if args.check_auth:
+            status = client.get_status()
+            logging.info(
+                "authenticated as %s (%s)",
+                status.get("username", "unknown"),
+                status.get("status", "unknown"),
+            )
+            return 0
         importer = PiwigoImporter(piwigo=client, config=config)
         events = importer.import_folder(args.input, args.album, dry_run=args.dry_run)
         for event in events:

@@ -2,8 +2,8 @@
 # Prefer PIWIGO_USERNAME / PIWIGO_PASSWORD or PIWIGO_API_KEY in the environment.
 # username = "piwigo-user"
 # password = "piwigo-password"
-# Piwigo 16 API key. Sent as the Authorization HTTP header.
-# api_key = "optional-api-key"
+# Piwigo API key. Must include the pkid and secret separated by ':'.
+# api_key = "pkid-XXXXXXXX-XXXXXXXXXXXX:YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY"
 
 [piwigo]
 # Piwigo privacy level. Leave unset to let Piwigo use its default.

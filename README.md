@@ -34,11 +34,25 @@ export PIWIGO_PASSWORD='secret'
 If your Piwigo supports API keys, you can use:
 
 ```sh
-export PIWIGO_API_KEY='key-value'
+export PIWIGO_API_KEY='pkid-XXXXXXXX-XXXXXXXXXXXX:YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY'
 ```
 
-Piwigo 16 API keys are sent in the `Authorization` HTTP header. Config-file
-auth is supported, but environment variables take precedence.
+API key auth uses the `X-PIWIGO-API` HTTP header. The value must include both
+the public key id and secret, separated by `:`:
+`pkid-XXXXXXXX-XXXXXXXXXXXX:YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY`.
+Config-file auth is supported, but environment variables take precedence. The
+API key is always sent with the standard `X-PIWIGO-API` header.
+
+Check the configured credentials without importing:
+
+```sh
+digikam-piwigo-import \
+  --base-url https://photos.example.com \
+  --input /tmp \
+  --album "Unused" \
+  --config config.toml \
+  --check-auth
+```
 
 ## Usage
 

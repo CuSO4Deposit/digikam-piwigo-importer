@@ -33,6 +33,7 @@ class PiwigoClient:
 
     def login(self) -> None:
         if self.api_key:
+            self.check_authenticated()
             return
         if not self.username or not self.password:
             raise PiwigoApiError("Missing Piwigo username/password or API key")
@@ -41,6 +42,9 @@ class PiwigoClient:
             username=self.username,
             password=self.password,
         )
+
+    def get_status(self) -> Any:
+        return self.call("pwg.session.getStatus")
 
     def find_or_create_album(
         self,
@@ -222,16 +226,30 @@ class PiwigoClient:
         )
         return self._parse_response(response)
 
+    def check_authenticated(self) -> None:
+        status = self.get_status()
+        if str(status.get("status", "guest")).lower() == "guest":
+            raise PiwigoApiError(
+                "Piwigo API key authenticated as guest; expected an admin-capable key"
+            )
+
     def _auth_headers(self) -> dict[str, str]:
         if not self.api_key:
             return {}
-        return {"Authorization": self.api_key}
+        return {"X-PIWIGO-API": self.api_key}
 
     def close(self) -> None:
         self._client.close()
 
     def _parse_response(self, response: httpx.Response) -> Any:
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as error:
+            body = response.text.strip()
+            message = f"Piwigo HTTP error {response.status_code}"
+            if body:
+                message = f"{message}: {body}"
+            raise PiwigoApiError(message) from error
         payload = response.json()
         if payload.get("stat") != "ok":
             message = payload.get("message") or payload.get("err") or payload
