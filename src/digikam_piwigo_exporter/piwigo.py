@@ -25,7 +25,10 @@ class PiwigoClient:
         self.username = username
         self.password = password
         self.api_key = api_key
-        self._client = http_client or httpx.Client(timeout=60.0)
+        self._client = http_client or httpx.Client(
+            timeout=60.0,
+            limits=httpx.Limits(max_connections=1, max_keepalive_connections=1),
+        )
 
     @property
     def ws_url(self) -> str:

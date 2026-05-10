@@ -9,6 +9,16 @@ def json_response(payload: dict) -> httpx.Response:
     return httpx.Response(200, json={"stat": "ok", "result": payload})
 
 
+def test_default_client_limits_tcp_connections() -> None:
+    client = PiwigoClient("https://photos.example")
+
+    pool = client._client._transport._pool
+    assert pool._max_connections == 1
+    assert pool._max_keepalive_connections == 1
+
+    client.close()
+
+
 def test_login_posts_credentials_to_ws_endpoint() -> None:
     requests: list[httpx.Request] = []
 
