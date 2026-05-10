@@ -28,7 +28,8 @@ class ImageMetadata:
 def extract_metadata(image_path: Path) -> ImageMetadata:
     sidecar = _find_sidecar(image_path)
     sidecar_metadata = _read_xmp_sidecar(sidecar) if sidecar else None
-    fallback = ImageMetadata(title=image_path.stem)
+    embedded_metadata = _read_embedded_xmp(image_path)
+    fallback = embedded_metadata or ImageMetadata(title=image_path.stem)
 
     if sidecar_metadata is None:
         return fallback
@@ -53,7 +54,21 @@ def _find_sidecar(image_path: Path) -> Path | None:
 
 def _read_xmp_sidecar(path: Path) -> ImageMetadata:
     root = ElementTree.parse(path).getroot()
+    return _metadata_from_xmp_root(root)
 
+
+def _read_embedded_xmp(path: Path) -> ImageMetadata | None:
+    data = path.read_bytes()
+    start = data.find(b"<x:xmpmeta")
+    end = data.find(b"</x:xmpmeta>", start)
+    if start == -1 or end == -1:
+        return None
+    end += len(b"</x:xmpmeta>")
+    root = ElementTree.fromstring(data[start:end])
+    return _metadata_from_xmp_root(root)
+
+
+def _metadata_from_xmp_root(root: ElementTree.Element) -> ImageMetadata:
     return ImageMetadata(
         title=_first_alt_text(root, "dc:title") or "",
         description=_first_alt_text(root, "dc:description"),

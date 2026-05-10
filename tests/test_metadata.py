@@ -65,3 +65,25 @@ def test_sidecar_values_override_filename_fallback(tmp_path: Path) -> None:
     metadata = extract_metadata(image_path)
 
     assert metadata.title == "Preferred title"
+
+
+def test_embedded_xmp_is_used_when_sidecar_is_missing(tmp_path: Path) -> None:
+    image_path = tmp_path / "embedded.jpg"
+    image_path.write_bytes(
+        b"prefix"
+        b'<x:xmpmeta xmlns:x="adobe:ns:meta/" '
+        b'xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        b"<rdf:RDF>"
+        b'<rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/">'
+        b"<dc:title><rdf:Alt><rdf:li>Embedded title</rdf:li></rdf:Alt></dc:title>"
+        b"<dc:subject><rdf:Bag><rdf:li>embedded-tag</rdf:li></rdf:Bag></dc:subject>"
+        b"</rdf:Description>"
+        b"</rdf:RDF>"
+        b"</x:xmpmeta>"
+        b"suffix"
+    )
+
+    metadata = extract_metadata(image_path)
+
+    assert metadata.title == "Embedded title"
+    assert metadata.tags == ("embedded-tag",)
