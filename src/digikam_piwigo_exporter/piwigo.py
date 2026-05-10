@@ -99,7 +99,11 @@ class PiwigoClient:
         return parent_id
 
     def _get_categories(self) -> list[dict[str, Any]]:
-        result = self.call("pwg.categories.getList", recursive="true")
+        result = self.call(
+            "pwg.categories.getList",
+            recursive="true",
+            public="false",
+        )
         categories = result.get(
             "categories", result if isinstance(result, list) else []
         )

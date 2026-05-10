@@ -89,6 +89,23 @@ def test_find_or_create_album_uses_existing_matching_path() -> None:
     assert calls == ["pwg.categories.getList"]
 
 
+def test_find_or_create_album_requests_private_categories_too() -> None:
+    requests: list[dict[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        data = dict(httpx.QueryParams(request.content.decode()))
+        requests.append(data)
+        return json_response({"categories": [{"id": 1, "name": "Shared"}]})
+
+    client = PiwigoClient(
+        "https://photos.example",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    assert client.find_or_create_album("Shared") == 1
+    assert requests[0]["public"] == "false"
+
+
 def test_find_or_create_album_resolves_nested_album_by_parent_relationship() -> None:
     calls: list[str] = []
 
