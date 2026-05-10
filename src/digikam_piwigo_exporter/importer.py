@@ -34,6 +34,8 @@ class PiwigoGateway(Protocol):
 
     def associate_image(self, *, image_id: int, category_id: int) -> None: ...
 
+    def update_image_info(self, *, image_id: int, level: int | None) -> None: ...
+
 
 class ImportAction(StrEnum):
     UPLOAD = "upload"
@@ -89,6 +91,11 @@ class PiwigoImporter:
                         message=f"existing checksum {checksum}",
                     )
                 )
+                if not dry_run and self._config.default_level is not None:
+                    self._piwigo.update_image_info(
+                        image_id=image_id,
+                        level=self._config.default_level,
+                    )
             else:
                 events.append(
                     ImportEvent(

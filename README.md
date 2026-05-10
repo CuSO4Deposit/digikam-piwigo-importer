@@ -106,6 +106,17 @@ An image tagged `share-family` is uploaded once to the target album, then
 associated with `Shared / Family`. Configure Piwigo user/group ACLs on those
 albums.
 
+For album-based access control, keep image privacy level public:
+
+```toml
+[piwigo]
+default_level = 0
+```
+
+Piwigo evaluates both album ACLs and per-image privacy level. If you set
+`default_level = 8`, the image itself is restricted to admins even when it is in
+an album that other users can access.
+
 ## Idempotency
 
 The importer computes a SHA-256 checksum for each local file and asks Piwigo for

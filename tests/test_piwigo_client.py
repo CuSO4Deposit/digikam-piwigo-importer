@@ -61,6 +61,8 @@ def test_upload_simple_posts_image_and_metadata(tmp_path: Path) -> None:
     assert "Title" in body
     assert "Description" in body
     assert "tag-a,Places|Kyoto" in body
+    assert "level" in body
+    assert "0" in body
     assert "photo.jpg" in body
 
 
@@ -178,3 +180,23 @@ def test_associate_image_posts_category_update() -> None:
     assert "method=pwg.images.setInfo" in body
     assert "image_id=42" in body
     assert "categories=9" in body
+
+
+def test_update_image_info_posts_privacy_level() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return json_response({})
+
+    client = PiwigoClient(
+        "https://photos.example",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    client.update_image_info(image_id=42, level=8)
+
+    body = requests[0].content.decode()
+    assert "method=pwg.images.setInfo" in body
+    assert "image_id=42" in body
+    assert "level=8" in body

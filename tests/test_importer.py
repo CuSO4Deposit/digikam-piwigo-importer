@@ -11,6 +11,7 @@ class FakePiwigo:
     def __init__(self) -> None:
         self.uploads: list[dict] = []
         self.associations: list[tuple[int, int]] = []
+        self.info_updates: list[dict] = []
         self.created_or_found_albums: list[str] = []
         self.found_albums: list[str] = []
         self.albums = {
@@ -39,6 +40,9 @@ class FakePiwigo:
 
     def associate_image(self, *, image_id: int, category_id: int) -> None:
         self.associations.append((image_id, category_id))
+
+    def update_image_info(self, *, image_id: int, level: int | None) -> None:
+        self.info_updates.append({"image_id": image_id, "level": level})
 
 
 def write_image(path: Path) -> None:
@@ -164,3 +168,23 @@ def test_existing_checksum_skips_upload_but_keeps_share_association(
     ]
     assert piwigo.uploads == []
     assert piwigo.associations == [(99, 2)]
+
+
+def test_existing_checksum_updates_privacy_level(tmp_path: Path) -> None:
+    image_path = tmp_path / "photo.jpg"
+    write_image(image_path)
+    write_sidecar(image_path)
+    piwigo = FakePiwigo()
+    importer = PiwigoImporter(
+        piwigo=piwigo,
+        config=ImportConfig(
+            share_albums={"share-family": "Shared / Family"},
+            default_level=8,
+        ),
+    )
+    checksum = importer.checksum(image_path)
+    piwigo.existing_by_checksum[checksum] = 99
+
+    importer.import_folder(tmp_path, "Trips", dry_run=False)
+
+    assert piwigo.info_updates == [{"image_id": 99, "level": 8}]

@@ -176,6 +176,15 @@ class PiwigoClient:
             multiple_value_mode="append",
         )
 
+    def update_image_info(self, *, image_id: int, level: int | None) -> None:
+        if level is None:
+            return
+        self.call(
+            "pwg.images.setInfo",
+            image_id=str(image_id),
+            level=str(level),
+        )
+
     def find_image_by_checksum(self, checksum: str) -> int | None:
         result = self.call("pwg.images.search", query=checksum)
         images = result.get("images", result if isinstance(result, list) else [])
