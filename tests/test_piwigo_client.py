@@ -444,6 +444,35 @@ def test_update_image_info_posts_privacy_level() -> None:
     assert "level=8" in body
 
 
+def test_update_image_info_posts_metadata_fields() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return json_response({})
+
+    client = PiwigoClient(
+        "https://photos.example",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    client.update_image_info(
+        image_id=42,
+        name="Title",
+        comment="Description",
+        tags=["tag-a", "Places|Kyoto"],
+        level=0,
+    )
+
+    body = requests[0].content.decode()
+    assert "method=pwg.images.setInfo" in body
+    assert "image_id=42" in body
+    assert "name=Title" in body
+    assert "comment=Description" in body
+    assert "tags=tag-a%2CPlaces%7CKyoto" in body
+    assert "level=0" in body
+
+
 def test_get_images_by_tag_pages_until_empty() -> None:
     requests: list[dict[str, str]] = []
 

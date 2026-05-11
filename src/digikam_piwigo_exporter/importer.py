@@ -39,7 +39,15 @@ class PiwigoGateway(Protocol):
 
     def associate_image(self, *, image_id: int, category_id: int) -> None: ...
 
-    def update_image_info(self, *, image_id: int, level: int | None) -> None: ...
+    def update_image_info(
+        self,
+        *,
+        image_id: int,
+        name: str | None = None,
+        comment: str | None = None,
+        tags: list[str] | None = None,
+        level: int | None = None,
+    ) -> None: ...
 
 
 class ImportAction(StrEnum):
@@ -78,6 +86,7 @@ class PiwigoImporter:
         *,
         dry_run: bool,
         dedupe_check: bool = True,
+        update_existing_metadata: bool = False,
     ) -> list[ImportEvent]:
         if not input_folder.is_dir():
             raise NotADirectoryError(input_folder)
@@ -120,10 +129,23 @@ class PiwigoImporter:
                         kind=ImportAction.SKIP,
                         image_path=image_path,
                         image_id=image_id,
-                        message=f"existing checksum {checksum}",
+                        message=(
+                            f"existing checksum {checksum}; "
+                            f"{'would update' if dry_run else 'updated'} metadata"
+                            if update_existing_metadata
+                            else f"existing checksum {checksum}"
+                        ),
                     )
                 )
-                if not dry_run and self._config.default_level is not None:
+                if not dry_run and update_existing_metadata:
+                    self._piwigo.update_image_info(
+                        image_id=image_id,
+                        name=sanitized.title,
+                        comment=sanitized.description,
+                        tags=sanitized.tags,
+                        level=self._config.default_level,
+                    )
+                elif not dry_run and self._config.default_level is not None:
                     self._piwigo.update_image_info(
                         image_id=image_id,
                         level=self._config.default_level,

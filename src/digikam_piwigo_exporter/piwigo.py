@@ -183,14 +183,29 @@ class PiwigoClient:
             multiple_value_mode="append",
         )
 
-    def update_image_info(self, *, image_id: int, level: int | None) -> None:
-        if level is None:
+    def update_image_info(
+        self,
+        *,
+        image_id: int,
+        name: str | None = None,
+        comment: str | None = None,
+        tags: Iterable[str] | None = None,
+        level: int | None = None,
+    ) -> None:
+        payload: dict[str, Any] = {
+            "image_id": str(image_id),
+        }
+        if name is not None:
+            payload["name"] = name
+        if comment is not None:
+            payload["comment"] = comment
+        if tags is not None:
+            payload["tags"] = ",".join(tags)
+        if level is not None:
+            payload["level"] = str(level)
+        if len(payload) == 1:
             return
-        self.call(
-            "pwg.images.setInfo",
-            image_id=str(image_id),
-            level=str(level),
-        )
+        self.call("pwg.images.setInfo", **payload)
 
     def find_image_by_checksum(self, checksum: str) -> int | None:
         result = self.call("pwg.images.search", query=checksum)

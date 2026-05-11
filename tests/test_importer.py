@@ -48,8 +48,23 @@ class FakePiwigo:
     def associate_image(self, *, image_id: int, category_id: int) -> None:
         self.associations.append((image_id, category_id))
 
-    def update_image_info(self, *, image_id: int, level: int | None) -> None:
-        self.info_updates.append({"image_id": image_id, "level": level})
+    def update_image_info(
+        self,
+        *,
+        image_id: int,
+        name: str | None = None,
+        comment: str | None = None,
+        tags: list[str] | None = None,
+        level: int | None = None,
+    ) -> None:
+        update = {"image_id": image_id, "level": level}
+        if name is not None:
+            update["name"] = name
+        if comment is not None:
+            update["comment"] = comment
+        if tags is not None:
+            update["tags"] = tags
+        self.info_updates.append(update)
 
 
 def write_image(path: Path) -> None:
@@ -224,6 +239,78 @@ def test_existing_checksum_updates_privacy_level(tmp_path: Path) -> None:
     importer.import_folder(tmp_path, "Trips", dry_run=False)
 
     assert piwigo.info_updates == [{"image_id": 99, "level": 8}]
+
+
+def test_existing_checksum_can_update_metadata_without_upload(
+    tmp_path: Path,
+) -> None:
+    image_path = tmp_path / "photo.jpg"
+    write_image(image_path)
+    write_sidecar(image_path)
+    piwigo = FakePiwigo()
+    importer = PiwigoImporter(
+        piwigo=piwigo,
+        config=ImportConfig(
+            share_albums={"share-family": "Shared / Family"},
+            default_level=0,
+        ),
+    )
+    checksum = importer.checksum(image_path)
+    piwigo.existing_by_checksum[checksum] = 99
+
+    actions = importer.import_folder(
+        tmp_path,
+        "Trips",
+        dry_run=False,
+        update_existing_metadata=True,
+    )
+
+    assert [action.kind for action in actions] == [
+        ImportAction.SKIP,
+        ImportAction.ASSOCIATE,
+    ]
+    assert "updated metadata" in actions[0].message
+    assert piwigo.uploads == []
+    assert piwigo.info_updates == [
+        {
+            "image_id": 99,
+            "level": 0,
+            "name": "Photo title",
+            "comment": "Photo comment",
+            "tags": ["tag-a", "share-family"],
+        }
+    ]
+    assert piwigo.associations == [(99, 1), (99, 2)]
+
+
+def test_dry_run_reports_existing_metadata_update_without_writes(
+    tmp_path: Path,
+) -> None:
+    image_path = tmp_path / "photo.jpg"
+    write_image(image_path)
+    write_sidecar(image_path)
+    piwigo = FakePiwigo()
+    importer = PiwigoImporter(
+        piwigo=piwigo,
+        config=ImportConfig(share_albums={"share-family": "Shared / Family"}),
+    )
+    checksum = importer.checksum(image_path)
+    piwigo.existing_by_checksum[checksum] = 99
+
+    actions = importer.import_folder(
+        tmp_path,
+        "Trips",
+        dry_run=True,
+        update_existing_metadata=True,
+    )
+
+    assert [action.kind for action in actions] == [
+        ImportAction.SKIP,
+        ImportAction.ASSOCIATE,
+    ]
+    assert "would update metadata" in actions[0].message
+    assert piwigo.info_updates == []
+    assert piwigo.associations == []
 
 
 def test_no_dedupe_check_uploads_without_checksum_search(tmp_path: Path) -> None:

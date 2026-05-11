@@ -87,6 +87,17 @@ digikam-piwigo-import \
   --config examples/config.toml
 ```
 
+Update Piwigo metadata for existing photos without uploading duplicate images:
+
+```sh
+digikam-piwigo-import \
+  --input /photos/DigiKam/Album \
+  --album "Trips / Kyoto" \
+  --base-url https://photos.example.com \
+  --config examples/config.toml \
+  --update-existing-metadata
+```
+
 First import without checksum lookups:
 
 ```sh
@@ -178,15 +189,25 @@ The importer computes a SHA-256 checksum for each local file and asks Piwigo
 for an existing image before uploading. Existing images are skipped and still
 get share-album associations checked.
 
+Use `--update-existing-metadata` to refresh Piwigo metadata for checksum
+matches without uploading the image again. When an existing image is found, the
+importer sends the current local title, description, tags, and configured
+privacy level to Piwigo. When no existing image is found, the image is uploaded
+normally with the same metadata.
+
 Use `--no-dedupe-check` for a known-empty first import to skip per-file
 `pwg.images.search` calls. This is faster, but it is not idempotent: if the
 same files already exist in Piwigo, they will be uploaded again.
+`--update-existing-metadata` cannot be combined with `--no-dedupe-check`,
+because existing images are only known after the checksum lookup.
 
-Dry-run mode logs planned uploads, skips, and associations without write calls.
+Dry-run mode logs planned uploads, skips, metadata updates, and associations
+without write calls.
 
 ## Current API Notes
 
-Uploads use `pwg.images.addSimple` with multipart form data. Share
+Uploads use `pwg.images.addSimple` with multipart form data. Existing-image
+metadata refreshes and album associations use `pwg.images.setInfo`. Share
 reconciliation uses Piwigo's tag index. The client uses `httpx` and calls:
 
 - `pwg.session.login`

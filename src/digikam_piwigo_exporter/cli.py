@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import sys
 from pathlib import Path
 
 from digikam_piwigo_exporter.config import load_config
@@ -25,6 +26,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip per-file checksum lookups before upload. Faster for first imports, but not idempotent.",
     )
     parser.add_argument(
+        "--update-existing-metadata",
+        action="store_true",
+        help=(
+            "When checksum lookup finds an existing image, update its Piwigo "
+            "title, description, tags, and privacy level from local metadata "
+            "without uploading the image again."
+        ),
+    )
+    parser.add_argument(
         "--check-auth",
         action="store_true",
         help="Check Piwigo authentication and exit.",
@@ -38,7 +48,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.no_dedupe_check and args.update_existing_metadata:
+        parser.print_usage(sys.stderr)
+        print(
+            "digikam-piwigo-import: error: "
+            "--update-existing-metadata cannot be used with --no-dedupe-check",
+            file=sys.stderr,
+        )
+        return 2
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(levelname)s %(message)s",
@@ -67,6 +86,7 @@ def main(argv: list[str] | None = None) -> int:
             args.album,
             dry_run=args.dry_run,
             dedupe_check=not args.no_dedupe_check,
+            update_existing_metadata=args.update_existing_metadata,
         )
         for event in events:
             logging.info("%s %s: %s", event.kind, event.image_path, event.message)
